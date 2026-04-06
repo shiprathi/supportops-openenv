@@ -1,0 +1,8 @@
+name: supportops_openenv
+description: Policy-aware customer support environment for e-commerce ticket resolution.
+version: 0.1.0
+entrypoint: app.server:app
+tasks:
+  - easy
+  - medium
+  - hard
