@@ -32,4 +32,5 @@ def grade_task(state, task):
         if matched >= 2:
             score += 0.1
 
-    return min(max(score, 0.0), 1.0)
+        score = min(max(score, 0.01), 0.99)
+        return score
