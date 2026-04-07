@@ -1,5 +1,5 @@
-from app.tasks import get_task
-from app.graders import grade_task
+from tasks import get_task
+from graders import grade_task
 
 
 class SupportEnv:
@@ -24,6 +24,7 @@ class SupportEnv:
             "tags": [],
             "reply": None,
             "resolution": None,
+            "task_score": 0.01,
             "last_action": None,
             "last_action_error": None,
         }
@@ -43,7 +44,6 @@ class SupportEnv:
         action_type = action.get("action_type")
         previous_action = self.state.get("last_action")
 
-        # repeated resolution action penalty
         if previous_action == action_type and action_type in [
             "approve_replacement",
             "deny_refund",
@@ -115,12 +115,10 @@ class SupportEnv:
         elif action_type == "submit_resolution":
             self.state["done"] = True
             score = grade_task(self.state, self.task)
-            reward = score * 10.0
-
-            if score >= 0.8:
-                self.state["success"] = True
-            else:
-                self.state["success"] = False
+            score = min(max(score, 0.01), 0.99)
+            self.state["task_score"] = score
+            reward = score
+            self.state["success"] = score >= 0.8
 
         else:
             reward = -0.2
@@ -132,12 +130,10 @@ class SupportEnv:
         if self.state["step"] >= self.state["max_steps"] and not self.state["done"]:
             self.state["done"] = True
             score = grade_task(self.state, self.task)
-            reward = max(reward, score * 5.0)
-
-            if score >= 0.8:
-                self.state["success"] = True
-            else:
-                self.state["success"] = False
+            score = min(max(score, 0.01), 0.99)
+            self.state["task_score"] = score
+            reward = max(reward, score)
+            self.state["success"] = score >= 0.8
 
         done = self.state["done"]
         return self.state, reward, done
