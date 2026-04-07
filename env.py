@@ -1,5 +1,9 @@
-from tasks import get_task
-from graders import grade_task
+try:
+    from tasks import get_task
+    from graders import grade_task
+except ImportError:
+    from app.tasks import get_task
+    from app.graders import grade_task
 
 
 class SupportEnv:
