@@ -1,13 +1,22 @@
 import os
 import json
-from openai import OpenAI
-from env import SupportEnv
+
+try:
+    from env import SupportEnv
+except ImportError:
+    from app.env import SupportEnv
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 API_KEY = os.getenv("HF_TOKEN")
 
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+client = None
+if API_KEY:
+    try:
+        from openai import OpenAI
+        client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    except Exception:
+        client = None
 
 
 def log_start(task):
@@ -80,6 +89,9 @@ def fallback_action(state):
 
 
 def llm_action(state):
+    if client is None:
+        raise RuntimeError("LLM client unavailable")
+
     system_prompt = (
         "You are a customer support operations agent.\n"
         "You must choose the NEXT logical action only.\n"
@@ -168,7 +180,7 @@ def validate_or_fix_action(state, action):
 
 
 def get_action(state):
-    if not API_KEY:
+    if client is None:
         return fallback_action(state)
 
     try:
