@@ -1,17 +1,14 @@
 import os
 import json
 from openai import OpenAI
-from app.env import SupportEnv
+from env import SupportEnv
 
-# 🔐 ENV VARIABLES (as per hackathon requirement)
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 API_KEY = os.getenv("HF_TOKEN")
 
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
-
-# ---------------- LOGGING ---------------- #
 
 def log_start(task):
     print(f"[START] task={task} env=supportops model={MODEL_NAME}")
@@ -25,12 +22,13 @@ def log_step(step, action, reward, done, error=None):
     )
 
 
-def log_end(success, steps, rewards):
+def log_end(success, steps, score, rewards):
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}")
+    print(
+        f"[END] success={str(success).lower()} steps={steps} "
+        f"score={score:.2f} rewards={rewards_str}"
+    )
 
-
-# ---------------- FALLBACK AGENT ---------------- #
 
 def fallback_action(state):
     task_name = state.get("task_name", "easy")
@@ -52,8 +50,8 @@ def fallback_action(state):
         if task_name == "easy":
             return {"action_type": "add_tag", "tag": "damaged_item"}
         if task_name == "medium":
-            return {"action_type": "add_tag", "tag": "refund_denied"}
-        return {"action_type": "add_tag", "tag": "payment_issue"}
+            return {"action_type": "add_tag", "tag": "late_refund_request"}
+        return {"action_type": "add_tag", "tag": "double_charge"}
 
     if not state["resolution"]:
         if task_name == "easy":
@@ -80,7 +78,6 @@ def fallback_action(state):
 
     return {"action_type": "submit_resolution"}
 
-# ---------------- LLM AGENT ---------------- #
 
 def llm_action(state):
     system_prompt = (
@@ -134,7 +131,7 @@ Examples:
 
     text = (response.choices[0].message.content or "").strip()
     return json.loads(text)
-# ---------------- DECISION ---------------- #
+
 
 def validate_or_fix_action(state, action):
     if not isinstance(action, dict) or "action_type" not in action:
@@ -142,7 +139,6 @@ def validate_or_fix_action(state, action):
 
     action_type = action["action_type"]
 
-    # Step order enforce karo
     if not state["retrieved_orders"]:
         if action_type != "search_order":
             return fallback_action(state)
@@ -182,22 +178,17 @@ def get_action(state):
         return fallback_action(state)
 
 
-# ---------------- RUN ---------------- #
-
 def run_task(task_name):
     env = SupportEnv()
     state = env.reset(task_name)
 
     log_start(task_name)
-
     rewards = []
     step_count = 0
 
     while True:
         step_count += 1
-
         action = get_action(state)
-
         state, reward, done = env.step(action)
         rewards.append(reward)
 
@@ -213,10 +204,10 @@ def run_task(task_name):
             break
 
     success = state.get("success", False)
-    log_end(success, step_count, rewards)
+    score = float(state.get("task_score", 0.01))
+    score = min(max(score, 0.01), 0.99)
+    log_end(success, step_count, score, rewards)
 
-
-# ---------------- ENTRY ---------------- #
 
 if __name__ == "__main__":
     for task in ["easy", "medium", "hard"]:
